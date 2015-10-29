@@ -1,0 +1,222 @@
+---
+title: "Biodiversity Module"
+author: <a href="http://bigdata.duke.edu/data">Duke Data+</a> Interactive Environmental Data Team
+date: ""
+output: 
+  html_document:
+    theme: journal
+runtime: shiny
+---
+```{r, echo=FALSE}
+suppressPackageStartupMessages(library(shiny))
+```
+
+
+```{r, echo=FALSE}
+mythical<- read.csv("data/mythical.csv")
+m<- as.character(mythical[,1])
+getCommunity <- function(S=10,N=1000,equalprob=T){
+  if(S > 51) S <- 51 # right now we only have 26 species - each unique letter in the alphabet
+  prob <- rep(1/S,S)
+  if(!equalprob){
+    Nx <- rpois(S,sample(1:S,1))
+    prob <- Nx/sum(Nx)    
+  }
+  sub<-m[sample(S,N,replace=T,prob=prob)]
+  print(sub)
+  return (sub)
+}
+```
+
+```{r,echo=FALSE}
+ui<- fluidPage(
+  fluidRow(
+    h4("Click 'Get Community' to view the community distribution. Click 'Add To Table' to store values in a table."),
+    br(),
+    
+    #slider input for Tab 2 
+    column(3, sliderInput('num_species', 'Number of Species to Examine: ', min=2, max=51, value=12),
+           
+    #numeric input for number of individuals
+        numericInput('num_individuals', 'Number of individuals in the Population: ', min=1000, max=10000, value=1000, step=50),
+    #buttons controlling "skewed" or "uniform" and "Get Community" and "Save to Table"
+        radioButtons("random", label= "Type of community distribution",choices=c("uniform"="yes", "skewed"="no"), selected="yes"),
+        actionButton("get", label = "Get Community"),
+        actionButton("add", label= "Save to Table")),
+    
+#creates space for multiple choice questions
+    column(5, radioButtons(
+                 "Q1", 'What happens to the richness if you have a very high number of species oberservations?',
+                 choices = c("It Decreases"=1, "It stays the same"=2,"It Increases"=3), selected=F
+               ),
+               h5(textOutput("ansQ1"), style="color:blue"),
+#creates space for the distribution plot          
+            plotOutput("dist"),
+        tableOutput("dataLine")
+  ),
+#question 2 multiple choice 
+    column(4, radioButtons(
+      "Q2", 'What happens to the Simpson Index if you keep the number of species at 20 and increase the population size from very small to very large?',
+                 choices = c("It Decreases"=1, "It stays the same"=2,"It Increases"=3), selected=F
+               ),
+               h5(textOutput("ansQ2"), style="color:blue"),
+      #creates space for table output
+           tableOutput("dataTable"))
+    )
+    
+  )
+        
+
+server <-  function(input,output){
+# output for Q1     
+  output$ansQ1<- reactive({
+    validate( need(input$Q1, "Select an answer") )
+if (input$Q1==3){answer<- "Correct! Richness is proportional to the number of species."}
+    else{answer<-"Incorrect"}
+    return(answer)
+    })
+ #Output for Q2 multiple choice 
+    output$ansQ2<- reactive({
+    validate( need(input$Q2, "Select an answer") )
+if (input$Q2==1){answer<- "Correct! Why do you think this happens?"}
+    else{answer<-"Incorrect"}
+    return(answer)
+    })
+    
+      S<-reactive({input$num_species})
+      N<-reactive({input$num_individuals})
+      ran<- reactive({
+        if (input$random == "yes") {TRUE}
+        else {FALSE}
+        })
+ 
+      values <- reactiveValues(df=matrix(NA,nrow=0,ncol=4))
+#create barplot based on values chosen by slider input/entry on Tab2     
+    species <- eventReactive(input$get,{getCommunity(S(),N(),ran())})
+    output$dist= renderPlot({
+      par(mar=c(12,4,2,0.4))
+      barplot(table(species()), main="Species observations",xlab="", ylab="Number of Individuals",las=2)
+    })
+    
+#calculate data metrics based on numbers chosen by slider input/entry on Tab2    
+    metrics<- eventReactive(input$get,{  
+      richness<- length(unique(species()))
+      Pi <- table(species())/length(species())
+      shannon<-round((-sum(Pi*log(Pi))),2)
+      print (shannon)
+      lambda <- round(sum(Pi^2),2)
+      simpson<-lambda
+      num_s<- input$num_species
+      num_i<- input$num_individuals
+      x<- c(num_i,richness, shannon, simpson)
+      x
+      })
+    
+#Add generated data from app to the table
+  adddata <- observeEvent(input$add,{       
+     newLine <- c(metrics()[1],metrics()[2],metrics()[3],metrics()[4])
+     values$df <- rbind(values$df, newLine)})
+  
+  output$dataLine <- renderTable({
+    tmp <- matrix(unlist(metrics()))
+    rownames(tmp) <- c("N","Richness (S)","Shannon","Simpson")
+    colnames(tmp) <- NULL
+    tmp
+  })
+#Output the data table comprised of data generated from the app
+  output$dataTable <- renderTable({
+    tmp<- values$df
+    colnames(tmp)<- c("N", "S", "Shannon", "Simpson")
+    rownames(tmp)<-  NULL
+    tmp})
+      } 
+
+```
+
+```{r,echo=FALSE}
+tabsetPanel(
+  tabPanel("About"),
+  tabPanel("Experimental Analysis", shinyApp(ui=ui, server=server, options=list(height=1000)))
+)
+
+```
+
+## Background
+
+Biodiversity indices are used by environmental scientists to measure the diversity of species in a community.
+
+Three common measures are:
+
+* Richness
+* Shannon index
+* Simpson index
+
+We can calculate these indices with a data set of observations. For example, here is a hypothetical community (for new communities, just reload this page):
+
+```{r, echo=FALSE}
+dat <- sample(m,20,replace=T)
+dat
+```
+
+## Richness
+
+Richness ($S$) is the number of unique species. With a list of organism observations (above), the richness is:
+
+```{r, echo=FALSE}
+S <- length(unique(dat))
+paste(S, "unique species")
+```
+
+
+## Shannon index
+
+The Shannon index measures the evenness of species observations with relative proportions. The index is:
+
+$H'=- \sum_{i=1}^S p_i \ln p_i$
+
+where $S$ is the number of unique species and $p_i$ is the proportion of the $i^{th}$ species, which is $\frac{n_i}{N}$, where $N$ is the total number of individuals.
+
+
+```{r, echo=FALSE}
+Pi <- table(dat)/length(dat)
+
+H <- -sum(Pi*log(Pi))
+H
+```
+
+Higher values have higher evenness, and the maximum value is the log of the species richness ($\ln S$).   For this example: the maximum value is:
+
+```{r, echo=FALSE}
+X<- log(S)
+X
+```
+
+Therefore, this population has a high biodiversity
+
+## Simpson index
+
+The Simpson index measures the concentration of observations in certain groups. This index is:
+
+$\lambda=\sum_{i=1}^S p_i^2$
+
+It measures the probability that two individuals randomly chosen from a sample will have the same species.
+
+For our example data set:
+
+```{r, echo=FALSE}
+lambda <- sum(Pi^2)
+paste("Simpson is:", lambda)
+```
+
+It ranges between 0 and 1, and lower numbers are more diverse. Because of this inverse ranking, some people refer to the inverse of the Simpson index:
+
+$D = 1/\lambda$
+
+```{r, echo=FALSE}
+D <- 1/lambda
+paste("Inverse Simpson is:",  D)
+```
+
+Here, 1 is the lowest number and higher values have higher diversity.
+
+
