@@ -7,7 +7,7 @@ getCommunity <- function(S=10,N=1000,equalprob=T){
   if(S > 51) S <- 51 # right now we only have 26 species - each unique letter in the alphabet
   prob <- rep(1/S,S)
   if(!equalprob){
-    Nx <- rpois(S,sample(1:S,1))
+    Nx <- rpois( S, sample(1:S,S) )
     prob <- Nx/sum(Nx)    
   }
   sub<-m[sample(S,N,replace=T,prob=prob)]
