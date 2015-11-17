@@ -1,7 +1,8 @@
 library(shiny)
+library(ggplot2)
 
-mythical<- read.csv("data/mythical.csv")
-m<- as.character(mythical[,1])
+mythical <- read.csv("data/mythical.csv")
+m <- as.character(mythical[,1])
 
 getCommunity <- function(S=10,N=1000,equalprob=T){
   if(S > 51) S <- 51 # right now we only have 26 species - each unique letter in the alphabet
@@ -37,7 +38,8 @@ shinyServer(function(input, output){
     else {FALSE}
   })
   
-  values <- reactiveValues( df=matrix(NA,nrow=0,ncol=4) )
+  values <- reactiveValues( df=matrix(NA,nrow=0,ncol=5) )
+
   #create barplot based on values chosen by slider input
   species <- reactive( getCommunity(S(),N(),ran()) )
   output$dist= renderPlot({
@@ -61,7 +63,9 @@ shinyServer(function(input, output){
   
   #Add generated data from app to the table
   adddata <- observeEvent(input$add,{       
-    newLine <- c(metrics()[1],metrics()[2],metrics()[3],metrics()[4])
+    rand <- 0
+    if( !ran() ) rand <- 1
+    newLine <- c(metrics()[1],metrics()[2],metrics()[3],metrics()[4],rand)
     values$df <- rbind(values$df, newLine)
   })
   
@@ -75,9 +79,18 @@ shinyServer(function(input, output){
   #Output the data table comprised of data generated from the app
   output$dataTable <- renderTable({
     tmp<- values$df
-    colnames(tmp)<- c("N", "S", "Shannon", "Simpson")
+    colnames(tmp)<- c("N", "S", "Shannon", "Simpson","Rand")
     rownames(tmp)<-  NULL
     tmp
   })
+  
+  output$dataPlot <- renderPlot({
+    if(nrow(values$df)>0){
+      datatouse <- data.frame(Richness=values$df[,2], Evenness=values$df[,3], Randomness=values$df[,5])
+     ggplot(data=datatouse, aes(x=Richness,y=Evenness,color=factor(Randomness)))+ 
+       geom_point(position="jitter") 
+    }
+  })
+  
   
 })

@@ -23,7 +23,7 @@ shinyUI(
         radioButtons("Q1", 'What happens to the richness if you have a very high number of species oberservations?', choices = c("It Decreases"=1, "It stays the same"=2,"It Increases"=3), selected=F),
         h5(textOutput("ansQ1"), style="color:blue"),
         #creates space for the distribution plot          
-        plotOutput("dist"),
+        plotOutput("dataPlot"),
         tableOutput("dataLine")
       ),
       
